@@ -9,6 +9,8 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.os.StatFs;
 
 import com.github.luben.zstd.ZstdInputStream;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -34,8 +36,16 @@ final class JapaneseDictionary {
         final String expression, reading, meaning;
         final long id;
         Word(long id, String expression, String reading, String meaning) {
-            this.id=id; this.expression=expression; this.reading=reading; this.meaning=meaning;
+            ParsedEntry parsed=parseEntryJson(meaning);
+            this.id=id;
+            this.expression=expression==null||expression.isEmpty()?parsed.expression:expression;
+            this.reading=reading==null||reading.isEmpty()?parsed.reading:reading;
+            this.meaning=parsed.recognized?parsed.meaning:(meaning==null?"":meaning);
         }
+    }
+    private static final class ParsedEntry {
+        String expression="", reading="", meaning="";
+        boolean recognized;
     }
     interface Progress { void update(String message, int percent); }
 
@@ -123,12 +133,74 @@ final class JapaneseDictionary {
             if(zid!=null && gloss!=null) try(Cursor c=db.rawQuery("SELECT "+qcol(gloss)+" FROM zh_defs WHERE "+qcol(zid)+"=? LIMIT 12",new String[]{Long.toString(id)})) {
                 while(c.moveToNext()) { String x=c.getString(0); if(x!=null && !x.trim().isEmpty()) { if(meaning.length()>0)meaning+="；"; meaning+=x.trim(); } }
             }
-            if(meaning.isEmpty()) {
-                String json=pick(entryCols,"json","entry_json","data","content","entry");
-                if(json!=null) try(Cursor c=db.rawQuery("SELECT "+qcol(json)+" FROM entries WHERE "+qcol(entryId)+"=?",new String[]{Long.toString(id)})) { if(c.moveToFirst())meaning=c.getString(0); }
+            String json=pick(entryCols,"json","entry_json","data","content","entry");
+            if(json!=null && entryId!=null) try(Cursor c=db.rawQuery("SELECT "+qcol(json)+" FROM entries WHERE "+qcol(entryId)+"=?",new String[]{Long.toString(id)})) {
+                if(c.moveToFirst()) {
+                    ParsedEntry parsed=parseEntryJson(c.getString(0));
+                    if(expression.isEmpty())expression=parsed.expression;
+                    if(reading.isEmpty())reading=parsed.reading;
+                    if(meaning.isEmpty())meaning=parsed.meaning;
+                }
             }
         } catch(Exception ignored) { }
         return new Word(id,expression,reading,meaning);
+    }
+    private static ParsedEntry parseEntryJson(String value) {
+        ParsedEntry parsed=new ParsedEntry();
+        if(value==null || !value.trim().startsWith("{"))return parsed;
+        parsed.recognized=value.contains("\"senses\"")||value.contains("\"kanji\"");
+        try {
+            JSONObject entry=new JSONObject(value);
+            JSONArray kanji=entry.optJSONArray("kanji");
+            JSONArray kana=entry.optJSONArray("kana");
+            parsed.expression=firstText(kanji);
+            parsed.reading=firstText(kana);
+            JSONArray senses=entry.optJSONArray("senses");
+            if(senses==null)return parsed;
+            parsed.recognized=true;
+            ArrayList<String> chinese=new ArrayList<>(), english=new ArrayList<>();
+            for(int i=0;i<senses.length();i++) {
+                JSONObject sense=senses.optJSONObject(i);
+                if(sense==null)continue;
+                JSONArray glosses=sense.optJSONArray("glosses");
+                if(glosses==null)continue;
+                for(int j=0;j<glosses.length();j++) {
+                    JSONObject gloss=glosses.optJSONObject(j);
+                    if(gloss==null)continue;
+                    String text=gloss.optString("text","").trim();
+                    String language=gloss.optString("lang","").toLowerCase(Locale.ROOT);
+                    if(isChineseLanguage(language))addGloss(chinese,text);
+                    else if(language.equals("eng"))addGloss(english,text);
+                }
+            }
+            parsed.meaning=joinGlosses(chinese.isEmpty()?english:chinese);
+        } catch(Exception ignored) { parsed.recognized=true; }
+        return parsed;
+    }
+    private static String firstText(JSONArray values) {
+        if(values==null)return "";
+        for(int i=0;i<values.length();i++) {
+            JSONObject item=values.optJSONObject(i);
+            if(item!=null) {
+                String text=item.optString("text","").trim();
+                if(!text.isEmpty())return text;
+            }
+        }
+        return "";
+    }
+    private static boolean isChineseLanguage(String language) {
+        return language.equals("zh")||language.equals("zho")||language.equals("chi")||language.equals("cmn")||language.startsWith("zh-");
+    }
+    private static void addGloss(List<String> values,String value) {
+        if(!value.isEmpty()&&!values.contains(value)&&values.size()<12)values.add(value);
+    }
+    private static String joinGlosses(List<String> values) {
+        StringBuilder result=new StringBuilder();
+        for(String value:values) {
+            if(result.length()>0)result.append("；");
+            result.append(value);
+        }
+        return result.toString();
     }
     private Word searchKanji(SQLiteDatabase db,String character) {
         List<String> kc=columns(db,"kanji");String literal=pick(kc,"literal","character","kanji","glyph");if(literal==null)return null;
