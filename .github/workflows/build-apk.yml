@@ -14,6 +14,14 @@ jobs:
       - name: Get source
         uses: actions/checkout@v7
 
+      - name: Download and verify dictionary data
+        run: |
+          mkdir -p app/src/main/assets
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 30 --max-time 900 \
+            -o app/src/main/assets/japanese-dictionary.db.zst \
+            https://github.com/tomoshi-app/tomoshi-dict-data/releases/download/v2026-09-02/tomoshi-dict-open.db.zst
+          echo "7153dfd7a8e42e2d920308370eac90cf9f2e4b4cfe67fb9a86e9aa1c89494073  app/src/main/assets/japanese-dictionary.db.zst" | sha256sum --check -
+
       - name: Set up Java 17
         uses: actions/setup-java@v6
         with:

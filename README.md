@@ -1,6 +1,6 @@
 # 日语大词典（Android）
 
-一款离线优先的日中词典：首启下载约 86 MB 的压缩词库，解压后约占 650 MB；需要约 820 MB 可用空间完成安装。下载并通过 SHA-256 校验后，查词可离线使用。
+一款离线优先的日中词典：完整词库随 APK 一起发布（压缩数据约 86 MB），首次启动时在本机解压，约占 650 MB；安装词库需要约 820 MB 可用空间。之后查词可离线使用。
 
 功能：
 
@@ -17,7 +17,7 @@
 
 ### 云端一键构建（推荐）
 
-工程已带 GitHub Actions 工作流 `.github/workflows/build-apk.yml`。操作步骤：
+工程已带 GitHub Actions 工作流 `.github/workflows/build-apk.yml`。每次构建时，工作流会下载词库并校验 SHA-256，再将其包含在 APK 中。操作步骤：
 
 1. 下载源码 ZIP 并解压。
 2. 在 GitHub 新建仓库，Visibility 选 **Private**；建议勾选初始化 README。
@@ -27,10 +27,10 @@
 6. 推送后 GitHub 会自动运行 **Build Japanese Dictionary APK**。也可打开仓库 **Actions**，选择该工作流并点 **Run workflow**。
 7. 构建完成后点开运行记录，在 **Artifacts** 区域下载 `JapaneseDictionary-debug-apk`；解压后就是 `app-debug.apk`。
 
-APK 构建产物仅保留 7 天，需要时重新运行工作流即可。源码仓库保持 Private，词库文件不会上传到仓库。
+APK 构建产物仅保留 7 天，需要时重新运行工作流即可。源码仓库保持 Private，词库压缩包不会提交到仓库；它只在构建过程中下载并打入 APK。APK 会比普通词典应用大约 86 MB。
 
 GitHub Free 私有仓库包含有限的 Actions 构建分钟与工件存储额度；个人账户额度以 GitHub 当前账单页面为准。工作流在 GitHub 的 Linux runner 上安装 JDK、Android 35 SDK 与 Gradle，不要求本机安装 Android Studio。首次构建需要联网下载构建依赖。
 
 ### 本机 Android Studio 构建
 
-也可以用 Android Studio 打开本文件夹，安装 Android SDK Platform 35 与 JDK 17，然后执行 **Build > Build APK(s)**。生成文件位于 `app/build/outputs/apk/debug/app-debug.apk`。安装后首次启动时再下载完整词库。
+也可以用 Android Studio 打开本文件夹，安装 Android SDK Platform 35 与 JDK 17，并先从[词库发布页](https://github.com/tomoshi-app/tomoshi-dict-data/releases/tag/v2026-09-02)下载压缩包，放到 `app/src/main/assets/japanese-dictionary.db.zst`，然后执行 **Build > Build APK(s)**。生成文件位于 `app/build/outputs/apk/debug/app-debug.apk`。安装后首次启动时从 APK 本地解压词库。

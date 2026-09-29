@@ -1,6 +1,6 @@
 # 词库许可与鸣谢
 
-本应用使用 Tomoshi Dictionary Open Data Layer 的开放词库数据，数据版本 2026-09-02。数据文件下载后保存在应用私有目录中，应用不包含 Tomoshi 的程序代码、商标或专有数据。
+本应用使用 Tomoshi Dictionary Open Data Layer 的开放词库数据，数据版本 2026-09-02。构建时下载压缩词库并随 APK 发布；首次启动后，解压后的数据库保存在应用私有目录中。应用不包含 Tomoshi 的程序代码、商标或专有数据。
 
 ## 数据授权
 
@@ -8,7 +8,7 @@
 
 `kanji_strokes` 表按 CC BY-SA 3.0 授权：<https://creativecommons.org/licenses/by-sa/3.0/legalcode>。
 
-本应用对数据所作处理：在 Android 上下载并解压原始数据库，以 SQLite 查询；词库内容未作改写。应用界面、搜索历史和收藏记录由本项目编写并保存在本机。
+本应用对数据所作处理：在构建时下载原始压缩数据库，首次运行时在 Android 上解压，并以 SQLite 查询；词库内容未作改写。应用界面、搜索历史和收藏记录由本项目编写并保存在本机。
 
 ## 来源与作者
 

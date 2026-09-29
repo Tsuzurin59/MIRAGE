@@ -3,3 +3,4 @@
 **/build/
 local.properties
 *.iml
+app/src/main/assets/japanese-dictionary.db.zst

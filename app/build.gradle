@@ -3,6 +3,9 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.numazu.dictionary'
     compileSdk 35
+    androidResources {
+        noCompress += ['zst']
+    }
     defaultConfig {
         applicationId 'com.numazu.japanesedictionary'
         minSdk 23
@@ -19,3 +22,18 @@ android {
 dependencies {
     implementation 'com.github.luben:zstd-jni:1.5.7-7@aar'
 }
+
+def dictionaryAsset = layout.projectDirectory.file('src/main/assets/japanese-dictionary.db.zst')
+tasks.register('verifyDictionaryAsset') {
+    inputs.file(dictionaryAsset).optional()
+    outputs.file(layout.buildDirectory.file('dictionary-asset-verified.marker'))
+    doLast {
+        if (!dictionaryAsset.asFile.isFile()) {
+            throw new GradleException('Dictionary asset is missing. Run the workflow download step or place japanese-dictionary.db.zst in app/src/main/assets.')
+        }
+        def marker = outputs.files.singleFile
+        marker.parentFile.mkdirs()
+        marker.text = 'verified'
+    }
+}
+tasks.named('preBuild').configure { dependsOn('verifyDictionaryAsset') }

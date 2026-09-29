@@ -56,9 +56,9 @@ public final class MainActivity extends Activity {
     private void renderWelcome() {
         shell("日语大词典");
         addText("完整日中词库",28,INK,true,body);
-        addText("约 21.7 万条词条，另含汉字释义、词形和 JLPT 信息。首次安装下载约 86 MB，解压后占用约 650 MB；安装完成后可离线查词。",17,MUTED,false,body,12);
-        LinearLayout info=card(); addText("数据版本 2026-09-02\n需要稳定网络与至少约 820 MB 可用空间。下载支持中断后重试。",15,MUTED,false,info);
-        Button install=button("下载并安装大词库",true); body.addView(install,top(14));
+        addText("约 21.7 万条词条，另含汉字释义、词形和 JLPT 信息。完整词库已包含在安装包中，首次使用会在本机解压；之后可离线查词。",17,MUTED,false,body,12);
+        LinearLayout info=card(); addText("数据版本 2026-09-02\n安装包因包含约 86 MB 压缩词库而较大。首次解压需要约 820 MB 可用空间。",15,MUTED,false,info);
+        Button install=button("安装内置大词库",true); body.addView(install,top(14));
         install.setOnClickListener(v->installDictionary(install));
         Button about=button("数据来源与许可",false);body.addView(about,top(8));about.setOnClickListener(v->about());
     }
@@ -106,12 +106,12 @@ public final class MainActivity extends Activity {
         favorite.setOnClickListener(v->{dictionary.toggleFavorite(word);boolean next=dictionary.favorite(word);favorite.setText(next?"★ 已收藏":"☆ 收藏");toast(next?"已加入收藏":"已取消收藏");});dialog.show();
     }
     private void installDictionary(Button button) {
-        button.setEnabled(false);ProgressDialog progress=new ProgressDialog(this);progress.setTitle("安装日语大词库");progress.setMessage("准备下载…");progress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);progress.setMax(100);progress.setCancelable(false);progress.show();
+        button.setEnabled(false);ProgressDialog progress=new ProgressDialog(this);progress.setTitle("安装日语大词库");progress.setMessage("准备展开内置词库…");progress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);progress.setMax(100);progress.setCancelable(false);progress.show();
         worker.execute(()->{try{dictionary.install((message,pct)->main.post(()->{progress.setMessage(message);progress.setProgress(pct);}));main.post(()->{progress.dismiss();toast("日语大词库已就绪");renderLookup();});}
-            catch(Exception | LinkageError e){main.post(()->{progress.dismiss();button.setEnabled(true);String message=e.getMessage();if(e instanceof LinkageError)message="解压组件未能在这台手机上加载。请安装新版应用后重试。";new AlertDialog.Builder(this).setTitle("词库安装失败").setMessage(message==null?"请检查网络和剩余空间后重试。":message).setPositiveButton("重试",(d,w)->installDictionary(button)).setNegativeButton("稍后",null).show();});}});
+            catch(Exception | LinkageError e){main.post(()->{progress.dismiss();button.setEnabled(true);String message=e.getMessage();if(e instanceof LinkageError)message="解压组件未能在这台手机上加载。请安装新版应用后重试。";else if(e instanceof java.io.FileNotFoundException)message="安装包中没有词库文件，请重新下载完整的新版本 APK。";new AlertDialog.Builder(this).setTitle("词库安装失败").setMessage(message==null?"请确认安装包完整，并检查剩余空间后重试。":message).setPositiveButton("重试",(d,w)->installDictionary(button)).setNegativeButton("稍后",null).show();});}});
     }
-    private void about(){new AlertDialog.Builder(this).setTitle("数据来源与许可").setMessage("词库：Tomoshi Dictionary Open Data Layer，JMdict 派生日中词数据，版本 2026-09-02。\n\n包含约 21.7 万条中日词条及其他开放数据表。主要词库表采用 CC BY-SA 4.0；kanji_strokes 表采用 CC BY-SA 3.0。\n\n来源与作者：JMdict / EDRDG；中文派生层归功 Tomoshi (Y1Z)。本应用使用独立名称与界面，不代表 Tomoshi 官方产品。修改说明：将开放数据装入 Android 应用，并制作本地查询界面。衍生数据继续按相同许可提供。\n\n数据项目、完整授权及声明：github.com/tomoshi-app/tomoshi-dict-data。词库下载后保存在应用私有空间，查询与历史记录仅保存在本机。")
-        .setPositiveButton("好的",null).setNeutralButton("重新下载词库",(d,w)->{new AlertDialog.Builder(this).setMessage("删除本地词库后，需要再次下载约 86 MB，并有约 650 MB 空间。收藏和历史记录会保留。确定继续？").setPositiveButton("删除",(dd,ww)->{if(dictionary.databaseFile.delete()){renderWelcome();toast("已删除词库文件");}}).setNegativeButton("取消",null).show();}).show();}
+    private void about(){new AlertDialog.Builder(this).setTitle("数据来源与许可").setMessage("词库：Tomoshi Dictionary Open Data Layer，JMdict 派生日中词数据，版本 2026-09-02。\n\n包含约 21.7 万条中日词条及其他开放数据表。主要词库表采用 CC BY-SA 4.0；kanji_strokes 表采用 CC BY-SA 3.0。\n\n来源与作者：JMdict / EDRDG；中文派生层归功 Tomoshi (Y1Z)。本应用使用独立名称与界面，不代表 Tomoshi 官方产品。修改说明：将开放数据装入 Android 应用，并制作本地查询界面。衍生数据继续按相同许可提供。\n\n数据项目、完整授权及声明：github.com/tomoshi-app/tomoshi-dict-data。词库已随安装包提供，展开后保存在应用私有空间；查询与历史记录仅保存在本机。")
+        .setPositiveButton("好的",null).setNeutralButton("重装词库",(d,w)->{new AlertDialog.Builder(this).setMessage("删除本地词库后，将从安装包重新解压，约需 820 MB 可用空间。收藏和历史记录会保留。确定继续？").setPositiveButton("删除",(dd,ww)->{if(dictionary.databaseFile.delete()){renderWelcome();toast("已删除词库文件");}}).setNegativeButton("取消",null).show();}).show();}
 
     private void shell(String title){root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);setContentView(root);LinearLayout header=new LinearLayout(this);header.setPadding(dp(18),dp(12),dp(18),dp(12));header.setGravity(Gravity.CENTER_VERTICAL);header.addView(text(title,23,INK,true),new LinearLayout.LayoutParams(-1,-2));root.addView(header);body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(16),dp(3),dp(16),dp(10));root.addView(body,new LinearLayout.LayoutParams(-1,0,1));}
     private LinearLayout card(){LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(dp(15),dp(14),dp(15),dp(14));c.setBackgroundColor(Color.WHITE);body.addView(c,top(12));return c;}

@@ -2,6 +2,7 @@ package com.numazu.dictionary;
 
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.res.AssetManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
@@ -11,11 +12,8 @@ import com.github.luben.zstd.ZstdInputStream;
 
 import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,13 +22,12 @@ import java.util.Locale;
 import java.util.Map;
 
 final class JapaneseDictionary {
-    static final String RELEASE = "2026-09-02";
-    static final String COMPRESSED_SHA = "7153dfd7a8e42e2d920308370eac90cf9f2e4b4cfe67fb9a86e9aa1c89494073";
     static final String RAW_SHA = "8b19c7d65a7d7d6df9afc58832b17b22fd349724e5d06d2acf3bb9a6c4b0ed9d";
-    static final String DOWNLOAD_URL = "https://github.com/tomoshi-app/tomoshi-dict-data/releases/download/v2026-09-02/tomoshi-dict-open.db.zst";
     static final long REQUIRED_FREE = 820L * 1024 * 1024;
+    private static final String PACKED_ASSET = "japanese-dictionary.db.zst";
     final File databaseFile;
     volatile String lastSearchProblem;
+    private final AssetManager assets;
     private final UserData user;
 
     static final class Word {
@@ -43,39 +40,26 @@ final class JapaneseDictionary {
     interface Progress { void update(String message, int percent); }
 
     JapaneseDictionary(Context context) {
-        databaseFile = new File(context.getFilesDir(), "japanese-dictionary.db");
-        user = new UserData(context);
+        Context app=context.getApplicationContext();
+        databaseFile = new File(app.getFilesDir(), "japanese-dictionary.db");
+        assets = app.getAssets();
+        user = new UserData(app);
     }
     boolean ready() { return databaseFile.isFile() && databaseFile.length() > 100_000_000L; }
     long availableBytes() { return new StatFs(databaseFile.getParent()).getAvailableBytes(); }
 
     void install(Progress progress) throws Exception {
-        if (availableBytes() < REQUIRED_FREE) throw new IllegalStateException("可用空间不足。首次安装需要约 820 MB 空间，请清理存储后再试。");
-        File packed = new File(databaseFile.getParentFile(), "dictionary-download.zst.part");
         File staged = new File(databaseFile.getParentFile(), "japanese-dictionary.db.part");
-        HttpURLConnection connection = (HttpURLConnection)new URL(DOWNLOAD_URL).openConnection();
-        connection.setConnectTimeout(20_000); connection.setReadTimeout(45_000); connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty("User-Agent", "NihongoDictionary/1.0");
+        if(staged.exists() && !staged.delete()) throw new IllegalStateException("无法清理上次未完成的解压文件，请清理应用存储后重试。");
+        long required=REQUIRED_FREE+(databaseFile.isFile()?databaseFile.length():0);
+        if (availableBytes() < required) throw new IllegalStateException("可用空间不足。当前安装约需 "+((required+1024*1024-1)/(1024*1024))+" MB 可用空间，请清理存储后再试。");
         try {
-            connection.connect();
-            int code=connection.getResponseCode();
-            if(code < 200 || code >= 300) throw new IllegalStateException("词库服务器返回错误："+code);
-            int total=connection.getContentLength();
-            MessageDigest compressed=MessageDigest.getInstance("SHA-256");
-            try(InputStream in=new BufferedInputStream(connection.getInputStream()); FileOutputStream out=new FileOutputStream(packed)) {
-                byte[] buffer=new byte[128*1024]; long done=0,lastUi=0; int n;
-                while((n=in.read(buffer))!=-1) {
-                    out.write(buffer,0,n); compressed.update(buffer,0,n); done+=n;
-                    if(done-lastUi>=2L*1024*1024 || (total>0&&done>=total)) { int pct=total>0?(int)Math.min(49,done*49/total):0;progress.update("正在下载日语大词库… "+(done/1024/1024)+" MB",pct);lastUi=done; }
-                }
-            }
-            if(!COMPRESSED_SHA.equals(hex(compressed.digest()))) throw new SecurityException("词库下载校验失败。请检查网络后重试。");
             MessageDigest raw=MessageDigest.getInstance("SHA-256");
-            try(InputStream in=new ZstdInputStream(new BufferedInputStream(new FileInputStream(packed))); FileOutputStream out=new FileOutputStream(staged)) {
+            try(InputStream packed=new BufferedInputStream(assets.open(PACKED_ASSET)); InputStream in=new ZstdInputStream(packed); FileOutputStream out=new FileOutputStream(staged)) {
                 byte[] buffer=new byte[256*1024]; long done=0,lastUi=0; int n;
                 while((n=in.read(buffer))!=-1) {
                     out.write(buffer,0,n); raw.update(buffer,0,n); done+=n;
-                    if(done-lastUi>=4L*1024*1024){progress.update("正在展开词库… "+(done/1024/1024)+" MB",50+(int)Math.min(48,done*48/(650L*1024*1024)));lastUi=done;}
+                    if(done-lastUi>=4L*1024*1024){progress.update("正在从安装包展开词库… "+(done/1024/1024)+" MB",(int)Math.min(98,done*98/(650L*1024*1024)));lastUi=done;}
                 }
             }
             if(!RAW_SHA.equals(hex(raw.digest()))) throw new SecurityException("解压后的词库校验失败，请重新安装。");
@@ -86,8 +70,7 @@ final class JapaneseDictionary {
             if(!staged.renameTo(databaseFile)) throw new IllegalStateException("无法保存词库文件。");
             progress.update("词库已安装。现在可以离线查词。",100);
         } finally {
-            connection.disconnect();
-            if(packed.exists()) packed.delete(); if(staged.exists()) staged.delete();
+            if(staged.exists()) staged.delete();
         }
     }
 
